@@ -103,6 +103,7 @@ $(() => {
     hasToken = (data) => {
         return (data.user.token == user.token)
     }
+
     createIcons()
     createStamps()
     loginArea.hide()
@@ -112,5 +113,88 @@ $(() => {
 
     let socket = io.connect(url)
 
+    //ログイン処理
+    $('#login').on('click', () => {
+        let name = inputName.val()
+        let icon = $('input[name=icon]:checked').val()
+        if (name && icon) {
+            loginArea.hide()
+            chatArea.fadeIn(FADE_TIME)
+            //サーバに送信
+            socket.emit('auth', {
+                name: name,
+                icon: icon,
+            })
+        }
+    })
+    //ログアウト処理
+    $('#logout').on('click', () => {
+        socket.emit('logout')
+        user = {}
 
+        chatArea.hide()
+        loginArea.fadeIn(FADE_TIME)
+    })
+    //ログアウト通知
+    socket.on('user_left', (data) => {
+        users = data.users
+        let message = data.user.name + 'が退出しました'
+        addMessage(message)
+        updateUserList()
+    })
+
+    //メッセージ送信
+    $('#send').on('click', () => {
+        socket.emit('message', {
+            message: message.val(),
+            user: user,
+        })
+        message.val() = ''
+    })
+    //メッセージ受信
+    socket.on('message', (data) => {
+        createChatMessage(data)
+    })
+    //受信
+    socket.on('logined', (data) => {
+        user = data.user
+        users = data.users
+        userName.text(user.name)
+        updateUserList()
+    })
+    socket.on('user_joined', (data) => {
+        users = data.users
+        let message = data.user.name + 'が入室しました'
+        addMessage(message)
+        updateUserList()
+    })
+
+    //スタンプ表示
+    $('.stamp').on('click', () => {
+        stampList.toggle()
+    })
+    //スタンプ送信
+    $('.uploadStamp').on('click', (event) => {
+        const image = new Image()
+        image.src = $(event.target).attr('src')
+        const mime_type = 'image/png'
+
+        image.onload = (e) => {
+            const canvas = document.createElement('canvas')
+            canvas.width = image.naturalWidth
+            canvas.height = image.naturalHeight
+            const ctx = canvas.getContext('2d')
+            //キャンバスに選択したスタンプ画像を貼り付け
+            ctx.drawImage(image, 0, 0)
+            //データエンコード
+            const base64 = canvas.toDataURL(mime_type)
+            const data = { user: user, image: base64}
+            //サーバに送信
+            socket.emit('upload_stamp', data)
+        }
+    })
+    //スタンプ受信
+    socket.on('load_stamp', (data) => {
+        createChatImage(data, { width: STAMP_WIDTH })
+    })
 })
